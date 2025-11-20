@@ -1,9 +1,6 @@
 # TEU Sandbox – Structural Vacuum Rigidity Model  
 Interactive exploration tool for the **Theory of the Empty Universe (TEU)**
 
-![TEU banner](https://via.placeholder.com/1200x200?text=TEU+Sandbox)
-
----
 
 ## 🔭 Overview
 
