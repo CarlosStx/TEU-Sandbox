@@ -66,4 +66,7 @@ pip install -r requirements.txt
 
 http://localhost:8501
 
+Carlos Mauricio Santacruz,
+TEU Sandbox – Structural Vacuum Rigidity Model, 2025.
+
 
