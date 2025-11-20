@@ -92,19 +92,19 @@ This interactive sandbox explores the **Theory of the Empty Universe (TEU)**
 using a two–scale structural vacuum rigidity function \(\lambda(r)\).
 
 The model uses
-$$
+
 \[
 \lambda(r) = \frac{\lambda_0}{1 + r/L_1 + (r/L_2)^2},
 \]
-$$
+
 and an effective acceleration
-$$
+
 \[
 a_{\mathrm{TEU}}(r) = a_N(r)\,\frac{\lambda(r_0)}{\lambda(r)},
 \qquad
 a_N(r) = -\frac{GM}{r^2}.
 \]
-$$
+
 Use the sliders on the left to explore how the model behaves from
 stellar to cosmological scales.
 """
