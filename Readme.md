@@ -1,37 +1,34 @@
-# TEU Sandbox – Structural Vacuum Rigidity Model
+# TEU Sandbox – Structural Vacuum Rigidity Model  
+Interactive exploration tool for the **Theory of the Empty Universe (TEU)**
 
-This repository contains an interactive **Streamlit** application to explore the
-two–scale structural vacuum rigidity model proposed in the **Theory of the Empty Universe (TEU)**.
+![TEU banner](https://via.placeholder.com/1200x200?text=TEU+Sandbox)
 
-The effective rigidity of the vacuum is modeled as
+---
+
+## 🔭 Overview
+
+**TEU Sandbox** is an interactive research environment to explore the  
+**Theory of the Empty Universe (TEU)** through its central dynamical element:  
+the *two–scale structural vacuum rigidity function*,
 
 \[
-\lambda(r) = \frac{\lambda_0}{1 + r/L_1 + (r/L_2)^2},
+\lambda(r) = \frac{\lambda_0}{1 + r/L_1 + (r/L_2)^2}.
 \]
 
-and the TEU radial acceleration is defined by
+This repository provides:
 
-\[
-a_{\text{TEU}}(r) = a_N(r)\,\frac{\lambda(r_0)}{\lambda(r)},
-\qquad
-a_N(r) = -\frac{GM}{r^2}.
-\]
+- A fully interactive **Streamlit** interface  
+- Numerical evaluation of TEU accelerations  
+- Vacuum rigidity profiles  
+- Comparison vs Newtonian gravity  
+- Rotation curves (Newton vs TEU)  
+- Stability and asymptotic regime diagnostics  
+- Approximate observational data overlays (Milky Way, M31, SPARC-like)
 
-The sandbox allows you to:
+The goal is to offer physicists and astronomers a **sandbox** to test,
+probe, and extend the TEU framework across galactic and cosmological scales.
 
-- Vary the **galaxy mass** \(M\),
-- Tune the **galactic scale** \(L_1\) (MOND-like transition),
-- Tune the **cosmological scale** \(L_2\) (asymptotic Hubble-like acceleration),
-- Choose a **reference radius** \(r_0\),
-- Inspect:
-  - Newton vs TEU accelerations,
-  - the rigidity profile \(\lambda(r)\),
-  - toy rotation curves for a Milky Way–like galaxy.
+---
 
-## How to run locally
+## 📂 Repository Structure
 
-```bash
-git clone https://github.com/<your-user>/TEU-Sandbox.git
-cd TEU-Sandbox
-pip install -r requirements.txt
-streamlit run app.py
