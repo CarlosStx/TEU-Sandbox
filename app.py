@@ -1,432 +1,448 @@
-import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import streamlit as st
 
-# ==========================================
-# 1. CONSTANTES Y FUNCIONES TEU
-# ==========================================
-
-G = 6.674e-11           # Gravitational constant (SI)
-Msun = 1.989e30         # Solar mass (kg)
-a0 = 1.2e-10            # MOND scale (m/s^2), reference only
-
-
-def lambda_two_scale(r, lambda0, L1, L2):
-    """
-    Two–scale structural vacuum rigidity:
-
-        lambda(r) = lambda0 / (1 + r/L1 + (r/L2)^2)
-    """
-    r = np.asarray(r, dtype=float)
-    return lambda0 / (1.0 + (r / L1) + (r / L2)**2)
-
-
-def dlambda_dr(r, lambda0, L1, L2):
-    """
-    Radial derivative d lambda / dr for the two–scale model.
-
-        lambda(r) = lambda0 / D
-        D = 1 + r/L1 + (r/L2)^2
-
-    d lambda/dr = -lambda0 * D' / D^2
-                = -lambda0 * (1/L1 + 2r/L2^2) / (1 + r/L1 + (r/L2)^2)^2
-    """
-    r = np.asarray(r, dtype=float)
-    D = 1.0 + (r / L1) + (r / L2)**2
-    Dp = (1.0 / L1) + 2.0 * r / (L2**2)
-    return -lambda0 * Dp / (D**2)
-
-
-def a_newton(r, M):
-    """
-    Newtonian radial acceleration:
-
-        a_N(r) = - G M / r^2
-    """
-    r = np.asarray(r, dtype=float)
-    return -G * M / r**2
-
-
-def a_teu(r, M, lambda0, L1, L2, r0):
-    """
-    TEU effective radial acceleration:
-
-        a_TEU(r) = a_N(r) * [ lambda(r0) / lambda(r) ]
-    """
-    r = np.asarray(r, dtype=float)
-    lam_r0 = lambda_two_scale(r0, lambda0, L1, L2)
-    lam_r = lambda_two_scale(r, lambda0, L1, L2)
-    aN = a_newton(r, M)
-    return aN * (lam_r0 / lam_r)
-
-
-def rotation_curve_teu(M, lambda0, L1, L2, r0, r_array):
-    """
-    Toy rotation curves for a point–mass galaxy in TEU.
-    Returns v_N(r) and v_TEU(r) in km/s.
-    """
-    r = np.asarray(r_array, dtype=float)
-    aN = a_newton(r, M)
-    aT = a_teu(r, M, lambda0, L1, L2, r0)
-
-    vN = np.sqrt(r * np.abs(aN)) / 1000.0
-    vT = np.sqrt(r * np.abs(aT)) / 1000.0
-
-    return vN, vT
-
-
-# ==========================================
-# 2. CONFIGURACIÓN STREAMLIT
-# ==========================================
+# ================================================================
+# TEU SANDBOX – app.py
+# Structural vacuum rigidity with two scales (L1, L2)
+# ================================================================
 
 st.set_page_config(
-    page_title="TEU Sandbox – Structural Vacuum Rigidity",
-    layout="wide"
+    page_title="TEU Sandbox",
+    layout="wide",
 )
 
-st.title("TEU Sandbox – Structural Vacuum Rigidity Model")
-
+st.title("TEU Sandbox – Structural Vacuum Rigidity")
 st.markdown(
-    r"""
-This interactive sandbox explores the **Theory of the Empty Universe (TEU)**
-using a two–scale structural vacuum rigidity function \(\lambda(r)\).
+    """
+Interactive sandbox for the **Theory of the Empty Universe (TEU)**.
 
-The model uses
+The model assumes that gravity emerges from a deformation of the vacuum,
+encoded in a scale–dependent rigidity function
+\\(\\lambda(r)\\). The effective radial acceleration is
 
-\[
-\lambda(r) = \frac{\lambda_0}{1 + r/L_1 + (r/L_2)^2},
-\]
+\\[
+a_{\\rm TEU}(r) = a_{\\rm N}(r)\\,\\frac{\\lambda(r_0)}{\\lambda(r)},
+\\quad
+a_{\\rm N}(r) = -\\,\\frac{GM}{r^2},
+\\]
 
-and an effective acceleration
+with a two–scale rigidity
 
-\[
-a_{\mathrm{TEU}}(r) = a_N(r)\,\frac{\lambda(r_0)}{\lambda(r)},
-\qquad
-a_N(r) = -\frac{GM}{r^2}.
-\]
+\\[
+\\lambda(r) = \\frac{\\lambda_0}
+{1 + r/L_1 + (r/L_2)^2 }.
+\\]
 
-Use the sliders on the left to explore how the model behaves from
-stellar to cosmological scales.
+Use the controls in the sidebar to explore Newtonian, MOND–like and
+cosmological regimes.
 """
 )
 
-# ==========================================
-# 3. CONTROLES LATERALES
-# ==========================================
+# ================================================================
+# CONSTANTS
+# ================================================================
 
-st.sidebar.header("Model Parameters")
+G = 6.674e-11          # gravitational constant (SI)
+Msun = 1.989e30        # solar mass (kg)
+a0 = 1.2e-10           # MOND scale (m/s^2), for reference
 
-M_log = st.sidebar.slider(
-    "Log10(M / Msun)",
-    min_value=9.0, max_value=12.0, value=11.0, step=0.1
-)
-M = (10**M_log) * Msun
+# ================================================================
+# SIDEBAR – MODEL PARAMETERS
+# ================================================================
 
-lambda0 = st.sidebar.number_input(
-    "λ₀ (reference rigidity)",
-    min_value=0.1, max_value=10.0, value=1.0, step=0.1
-)
-
-L1_log = st.sidebar.slider(
-    "Log10(L₁ / m) [galactic scale]",
-    min_value=18.0, max_value=22.0, value=20.5, step=0.1
-)
-L2_log = st.sidebar.slider(
-    "Log10(L₂ / m) [cosmological scale]",
-    min_value=24.0, max_value=28.0, value=26.0, step=0.1
+st.sidebar.title("TEU Sandbox – Model Parameters")
+st.sidebar.markdown(
+    "Adjust the **physical scales** of the TEU model and the "
+    "**numerical domain** used in the plots."
 )
 
-L1 = 10**L1_log
-L2 = 10**L2_log
+# ------------------ 1. Physical parameters -----------------------
+with st.sidebar.expander("1️⃣ Physical parameters", expanded=True):
 
-r0_log = st.sidebar.slider(
-    "Log10(r₀ / m) [Newtonian reference]",
-    min_value=18.0, max_value=21.0, value=19.0, step=0.1
-)
-r0 = 10**r0_log
+    log10_M = st.slider(
+        "log₁₀(M / M☉)",
+        min_value=9.0,
+        max_value=12.5,
+        value=11.0,
+        step=0.1,
+        help="Total baryonic mass of the system in solar masses. "
+             "Typical galaxies: 10¹⁰–10¹² M☉."
+    )
 
-r_min_log = st.sidebar.slider(
-    "Log10(r_min / m)",
-    min_value=17.0, max_value=21.0, value=18.0, step=0.1
-)
-r_max_log = st.sidebar.slider(
-    "Log10(r_max / m)",
-    min_value=21.0, max_value=28.0, value=26.0, step=0.1
-)
+    lambda0 = st.number_input(
+        "λ₀ (reference rigidity)",
+        min_value=0.1,
+        max_value=5.0,
+        value=1.0,
+        step=0.1,
+        help="Vacuum rigidity in the inner Newtonian/GR regime. "
+             "λ₀ = 1 is the natural normalization."
+    )
 
-r_min = 10**r_min_log
-r_max = 10**r_max_log
+    log10_L1 = st.slider(
+        "log₁₀(L₁ / m) – galactic scale",
+        min_value=19.0,
+        max_value=21.5,
+        value=20.5,
+        step=0.1,
+        help="Transition scale to the MOND-like regime. "
+             "Of order 10²⁰ m (~a few–tens of kpc)."
+    )
 
-N_pts = st.sidebar.slider(
-    "Number of radial points",
-    min_value=200, max_value=5000, value=1000, step=100
-)
+    log10_L2 = st.slider(
+        "log₁₀(L₂ / m) – cosmological scale",
+        min_value=25.0,
+        max_value=27.5,
+        value=26.0,
+        step=0.1,
+        help="Transition scale to the cosmological regime, where "
+             "a_TEU tends to an almost constant value (Hubble-like)."
+    )
+
+# ------------------ 2. Reference & radial domain -----------------
+with st.sidebar.expander("2️⃣ Reference & radial domain", expanded=True):
+
+    log10_r0 = st.slider(
+        "log₁₀(r₀ / m) – Newtonian reference",
+        min_value=18.0,
+        max_value=21.0,
+        value=19.0,
+        step=0.1,
+        help="Radius where we impose a_TEU(r₀) = a_N(r₀). "
+             "Typically inside the Newtonian/GR regime."
+    )
+
+    log10_r_min = st.slider(
+        "log₁₀(r_min / m)",
+        min_value=17.0,
+        max_value=21.0,
+        value=18.0,
+        step=0.1,
+        help="Inner radius used in all radial plots. "
+             "Should be smaller than r₀."
+    )
+
+    log10_r_max = st.slider(
+        "log₁₀(r_max / m)",
+        min_value=23.0,
+        max_value=27.0,
+        value=26.0,
+        step=0.1,
+        help="Outer radius used in all radial plots. "
+             "Must be large enough to reach the L₂ / cosmological regime."
+    )
+
+# ------------------ 3. Numerical settings ------------------------
+with st.sidebar.expander("3️⃣ Numerical settings", expanded=True):
+
+    N_pts = st.slider(
+        "Number of radial points",
+        min_value=300,
+        max_value=4000,
+        value=1000,
+        step=100,
+        help="Resolution of the radial grid. "
+             "Higher values give smoother curves but require more CPU time."
+    )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown(
-    """
-**Tips**  
-- Move **L₁** to explore the MOND–like transition.  
-- Increase or decrease **L₂** to control the asymptotic acceleration.  
-- Change **M** to mimic different galaxies.
-"""
+    "**Tip:** Start with the default values to see the three regimes "
+    "(Newton/GR, MOND-like, cosmological) and then adjust L₁ and L₂ "
+    "to explore how the TEU rigidity changes gravity."
 )
 
-# ==========================================
-# 4. CÁLCULOS PRINCIPALES
-# ==========================================
+# --------- Convert log-parameters to physical values --------------
+M     = (10.0 ** log10_M) * Msun
+L1    = 10.0 ** log10_L1
+L2    = 10.0 ** log10_L2
+r0    = 10.0 ** log10_r0
+r_min = 10.0 ** log10_r_min
+r_max = 10.0 ** log10_r_max
 
+# radial grid
 r = np.logspace(np.log10(r_min), np.log10(r_max), N_pts)
 
-aN = a_newton(r, M)
-aT = a_teu(r, M, lambda0, L1, L2, r0)
-lam = lambda_two_scale(r, lambda0, L1, L2)
-epsilon = (aT - aN) / aN
-dlam = dlambda_dr(r, lambda0, L1, L2)
+# ================================================================
+# PHYSICAL FUNCTIONS
+# ================================================================
 
-# Regiones para estabilidad (umbrales arbitrarios pero útiles)
-eps_GR = np.abs(epsilon) < 1e-3          # casi GR
-eps_MOND = (np.abs(aT) / a0 > 0.3) & (np.abs(aT) / a0 < 3.0) & (r > 0.1*L1)
-eps_div = lam < 1e-4                     # rigidez casi colapsada
+def lambda_r(r_val: np.ndarray) -> np.ndarray:
+    """Two–scale structural vacuum rigidity λ(r)."""
+    return lambda0 / (1.0 + (r_val / L1) + (r_val / L2) ** 2)
 
-# ==========================================
-# 5. PESTAÑAS
-# ==========================================
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "Acceleration Profiles",
-    "Vacuum Rigidity λ(r)",
-    "Rotation Curves",
-    "Field Equation Limits",
-    "Stability Regions",
-    "Comparison with Data"
-])
+def a_newton(r_val: np.ndarray) -> np.ndarray:
+    """Newtonian radial acceleration for a point mass M."""
+    return -G * M / r_val**2
 
-# ---------- TAB 1: ACELERACIONES ----------
-with tab1:
+
+def a_teu(r_val: np.ndarray) -> np.ndarray:
+    """
+    TEU effective acceleration:
+    a_TEU(r) = a_N(r) * [ lambda(r0) / lambda(r) ].
+    """
+    lam0 = lambda_r(r0)
+    lam = lambda_r(r_val)
+    return a_newton(r_val) * (lam0 / lam)
+
+
+# precompute main arrays
+lam_arr = lambda_r(r)
+aN_arr = a_newton(r)
+aT_arr = a_teu(r)
+epsilon = (aT_arr - aN_arr) / aN_arr
+
+# ================================================================
+# TABS
+# ================================================================
+
+(
+    tab_acc,
+    tab_lambda,
+    tab_rot,
+    tab_limits,
+    tab_stab,
+    tab_comp,
+) = st.tabs(
+    [
+        "Acceleration Profiles",
+        "Vacuum Rigidity λ(r)",
+        "Rotation Curves",
+        "Field Equation Limits",
+        "Stability Regions",
+        "Comparison with Data",
+    ]
+)
+
+# ------------------------------------------------
+# TAB 1 – Acceleration Profiles
+# ------------------------------------------------
+with tab_acc:
     st.subheader("Radial Acceleration: Newton vs TEU")
 
-    fig, ax = plt.subplots(figsize=(7, 5))
-    ax.loglog(r, np.abs(aN), label="|a_N(r)| Newton")
-    ax.loglog(r, np.abs(aT), "--", label="|a_TEU(r)| TEU")
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.loglog(r, np.abs(aN_arr), label="|a_N(r)| Newton")
+    ax.loglog(r, np.abs(aT_arr), "--", label="|a_TEU(r)| TEU")
     ax.set_xlabel("r (m)")
     ax.set_ylabel("|a(r)| (m/s²)")
-    ax.set_title("Radial acceleration: Newton vs TEU (log–log scale)")
-    ax.grid(True, which="both", alpha=0.3)
+    ax.set_title("Radial acceleration (log–log scale)")
+    ax.grid(True, which="both", ls=":")
     ax.legend()
     st.pyplot(fig)
 
-    fig2, ax2 = plt.subplots(figsize=(7, 5))
+    st.markdown("### Relative deviation ε(r)")
+    fig2, ax2 = plt.subplots(figsize=(7, 4))
     ax2.semilogx(r, epsilon)
+    ax2.axhline(0, color="gray", lw=0.8)
     ax2.set_xlabel("r (m)")
-    ax2.set_ylabel("ε(r) = [a_TEU - a_N] / a_N")
-    ax2.set_title("Relative deviation ε(r)")
-    ax2.grid(True, which="both", alpha=0.3)
+    ax2.set_ylabel("ε(r) = [a_TEU − a_N]/a_N")
+    ax2.grid(True, which="both", ls=":")
     st.pyplot(fig2)
 
-# ---------- TAB 2: λ(r) ----------
-with tab2:
+# ------------------------------------------------
+# TAB 2 – Vacuum Rigidity λ(r)
+# ------------------------------------------------
+with tab_lambda:
     st.subheader("Structural Vacuum Rigidity λ(r)")
 
-    fig3, ax3 = plt.subplots(figsize=(7, 5))
-    ax3.semilogx(r, lam)
-    ax3.axvline(L1, color="gray", linestyle=":", label="L₁")
-    ax3.axvline(L2, color="black", linestyle="--", label="L₂")
-    ax3.set_xlabel("r (m)")
-    ax3.set_ylabel("λ(r)")
-    ax3.set_title("Structural vacuum rigidity λ(r)")
-    ax3.grid(True, which="both", alpha=0.3)
-    ax3.legend()
-    st.pyplot(fig3)
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.semilogx(r, lam_arr)
+    ax.set_xlabel("r (m)")
+    ax.set_ylabel("λ(r)")
+    ax.set_title("Vacuum rigidity profile")
+    ax.grid(True, which="both", ls=":")
+    st.pyplot(fig)
 
-    st.markdown(
-        f"""
-- For **r → 0**, λ(r) → λ₀ ≈ **{lambda0:.2f}**.  
-- At **r ≈ L₁ ≈ 10^{L1_log:.1f} m** the first transition (galactic) appears.  
-- At **r ≈ L₂ ≈ 10^{L2_log:.1f} m** the cosmological scale controls the asymptotic behaviour.
-        """
-    )
+    # derivative dλ/dr
+    dlam_dr = np.gradient(lam_arr, r)
+    fig2, ax2 = plt.subplots(figsize=(7, 4))
+    ax2.semilogx(r, dlam_dr)
+    ax2.set_xlabel("r (m)")
+    ax2.set_ylabel("dλ/dr")
+    ax2.set_title("Derivative of the rigidity profile")
+    ax2.grid(True, which="both", ls=":")
+    st.pyplot(fig2)
 
-# ---------- TAB 3: CURVAS DE ROTACIÓN ----------
-with tab3:
-    st.subheader("Toy Rotation Curves: Newton vs TEU")
+# ------------------------------------------------
+# TAB 3 – Rotation Curves (spherical)
+# ------------------------------------------------
+with tab_rot:
+    st.subheader("Spherical Rotation Curves")
 
     kpc = 3.0857e19
-    r_gal = np.linspace(1 * kpc, 100 * kpc, 500)
-    r0_gal = 8 * kpc
+    r_kpc = r / kpc
 
-    vN, vT = rotation_curve_teu(M, lambda0, L1, L2, r0_gal, r_gal)
+    vN = np.sqrt(r * np.abs(aN_arr)) / 1000.0  # km/s
+    vT = np.sqrt(r * np.abs(aT_arr)) / 1000.0  # km/s
 
-    # Datos aproximados Vía Láctea (Gaia/Eilers-like)
-    r_obs_MW = np.array([5, 8, 10, 15, 20])   # kpc
-    v_obs_MW = np.array([220, 232, 220, 210, 190])  # km/s
+    # approximate Milky Way data (Gaia/Eilers-like)
+    r_obs_kpc = np.array([5, 8, 10, 15, 20])
+    v_obs_kms = np.array([220, 232, 220, 210, 190])
 
-    fig4, ax4 = plt.subplots(figsize=(7, 5))
-    ax4.plot(r_gal / kpc, vN, label="v_N(r) Newton")
-    ax4.plot(r_gal / kpc, vT, "--", label="v_TEU(r) TEU")
-    ax4.scatter(r_obs_MW, v_obs_MW, color="black",
-                label="Milky Way (approx. data)")
-    ax4.axvline(8, color='gray', linestyle=":", label="Sun (8 kpc)")
-    ax4.set_xlabel("r (kpc)")
-    ax4.set_ylabel("v(r) (km/s)")
-    ax4.set_title("Milky Way–like rotation curves (point–mass toy model)")
-    ax4.grid(True, alpha=0.3)
-    ax4.legend()
-    st.pyplot(fig4)
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(r_kpc, vN, label="v_N(r) Newton")
+    ax.plot(r_kpc, vT, "--", label="v_TEU(r) TEU")
+    ax.scatter(r_obs_kpc, v_obs_kms, c="k", label="Milky Way (approx.)")
+    ax.axvline(8, color="gray", linestyle=":", label="Sun (8 kpc)")
+    ax.set_xlim(0.5, 100)
+    ax.set_xlabel("r (kpc)")
+    ax.set_ylabel("v(r) (km/s)")
+    ax.set_title("Milky Way–type rotation curve (spherical mass)")
+    ax.grid(True, ls=":")
+    ax.legend()
+    st.pyplot(fig)
 
     st.markdown(
         """
-The black points are approximate Milky Way circular velocities from
-Gaia/Eilers–type analyses.  
-The TEU curve is generated using the same baryonic mass **M** and the
-two–scale rigidity model.
+The TEU curve can remain nearly flat over 5–20 kpc while the Newtonian
+curve (with the same baryonic mass) decreases too quickly, failing to
+reproduce the observed rotation curve.
 """
     )
 
-# ---------- TAB 4: FIELD EQUATION LIMITS ----------
-with tab4:
-    st.subheader("Field Equation Limits and Asymptotic Behaviour")
-
-    # Usamos algunos radios representativos
-    r_samples = np.array([
-        1e-3 * L1,   # r << L1
-        0.1 * L1,
-        L1,
-        10 * L1,
-        L2,
-        10 * L2
-    ])
-    lam_s = lambda_two_scale(r_samples, lambda0, L1, L2)
-    dlam_s = dlambda_dr(r_samples, lambda0, L1, L2)
-    aN_s = a_newton(r_samples, M)
-    aT_s = a_teu(r_samples, M, lambda0, L1, L2, r0)
-    ratio_a = aT_s / aN_s
-
-    st.markdown("**Sampled radii (relative to the TEU scales):**")
-    for R, lR, dlR, rA in zip(r_samples, lam_s, dlam_s, ratio_a):
-        st.markdown(
-            f"- r = {R:.2e} m  "
-            f"(r / L₁ = {R/L1:.2e}, r / L₂ = {R/L2:.2e})  —  "
-            f"λ(r) = {lR:.3e},  dλ/dr = {dlR:.3e},  a_TEU/a_N = {rA:.3e}"
-        )
-
-    fig5, ax5 = plt.subplots(figsize=(7, 5))
-    ax5.loglog(r, np.abs(dlam))
-    ax5.axvline(L1, color="gray", linestyle=":", label="L₁")
-    ax5.axvline(L2, color="black", linestyle="--", label="L₂")
-    ax5.set_xlabel("r (m)")
-    ax5.set_ylabel("|dλ/dr|")
-    ax5.set_title("Derivative of the rigidity profile dλ/dr")
-    ax5.grid(True, which="both", alpha=0.3)
-    ax5.legend()
-    st.pyplot(fig5)
+# ------------------------------------------------
+# TAB 4 – Field Equation Limits
+# ------------------------------------------------
+with tab_limits:
+    st.subheader("Field Equation Limits and Asymptotic Regimes")
 
     st.markdown(
-        """
-- For **r → 0**, \( \lambda(r) \to \lambda_0 \) and \( d\lambda/dr \to 0 \),
-  so TEU coincides with Newton/GR.  
-- Near **r ≈ L₁** the derivative is largest and the acceleration starts to
-  deviate from the pure \(1/r^2\) law (MOND–like transition).  
-- For **r ≫ L₂** the function saturates and produces an almost constant
-  acceleration, mimicking a Hubble–like term.
+        r"""
+For the two–scale rigidity
+\[
+\lambda(r) = \frac{\lambda_0}{1 + r/L_1 + (r/L_2)^2},
+\]
+we can identify four qualitative regimes:
+
+- **Inner Newtonian/GR**: \( r \ll L_1 \Rightarrow \lambda(r)\approx \lambda_0 \).
+- **MOND-like transition**: \( r\sim L_1 \Rightarrow \lambda(r) \) starts to drop and
+  TEU deviates from the pure \(1/r^2\) law.
+- **Intermediate regime**: \( L_1 \ll r \ll L_2 \Rightarrow \lambda(r)\sim L_1/r \).
+- **Cosmological regime**: \( r \gtrsim L_2 \Rightarrow \lambda(r)\sim L_2^2/r^2 \) and
+  \( a_{\rm TEU}(r) \) tends to an almost constant value.
 """
     )
 
-# ---------- TAB 5: STABILITY REGIONS ----------
-with tab5:
-    st.subheader("Stability and Regime Classification")
+    # pick representative radii
+    r_inner = L1 * 1e-2
+    r_L1 = L1
+    r_mid = np.sqrt(L1 * L2)
+    r_L2 = L2
+    r_far = L2 * 10
 
-    fig6, ax6 = plt.subplots(figsize=(7, 5))
-    ax6.semilogx(r, epsilon, label="ε(r) = (a_TEU - a_N)/a_N")
-    ax6.axhline(0.0, color="black", linewidth=0.7)
+    sample_r = np.array([r_inner, r_L1, r_mid, r_L2, r_far])
+    labels = ["r ≪ L₁", "r = L₁", "√(L₁L₂)", "r = L₂", "10 L₂"]
 
-    # Pintamos franjas con fill_between
-    ax6.fill_between(r, -1e-3, 1e-3, where=eps_GR,
-                     color="green", alpha=0.2, label="GR-like (|ε| < 1e-3)")
-    ax6.fill_between(r, np.min(epsilon), np.max(epsilon), where=eps_div,
-                     color="red", alpha=0.1, label="Low-rigidity region")
-
-    ax6.set_xlabel("r (m)")
-    ax6.set_ylabel("ε(r)")
-    ax6.set_title("Stability regions in TEU")
-    ax6.grid(True, which="both", alpha=0.3)
-    ax6.legend()
-    st.pyplot(fig6)
-
-    # Texto con rangos característicos
-    r_GR = r[eps_GR]
-    r_MOND = r[eps_MOND]
-    r_div = r[eps_div]
-
-    st.markdown("### Automatically detected regimes (approximate)")
-    if r_GR.size > 0:
-        st.markdown(
-            f"- **GR-like region:** roughly from "
-            f"{np.min(r_GR):.2e} m to {np.max(r_GR):.2e} m."
+    rows = []
+    for lbl, R in zip(labels, sample_r):
+        lam = lambda_r(R)
+        aN = a_newton(R)
+        aT = a_teu(R)
+        eps = (aT - aN) / aN
+        rows.append(
+            {
+                "Regime": lbl,
+                "r (m)": f"{R:.3e}",
+                "λ(r)": f"{lam:.3e}",
+                "a_N (m/s²)": f"{aN:.3e}",
+                "a_TEU (m/s²)": f"{aT:.3e}",
+                "ε = (a_TEU−a_N)/a_N": f"{eps:.3e}",
+            }
         )
-    else:
-        st.markdown("- **GR-like region:** none detected with |ε| < 1e-3.")
 
-    if r_MOND.size > 0:
-        st.markdown(
-            f"- **MOND-like region (|a_TEU| ~ a₀):** roughly from "
-            f"{np.min(r_MOND):.2e} m to {np.max(r_MOND):.2e} m."
-        )
-    else:
-        st.markdown("- **MOND-like region:** not clearly present for this parameter set.")
+    st.table(rows)
 
-    if r_div.size > 0:
-        st.markdown(
-            f"- **Low-rigidity / strong-deviation region:** starts around "
-            f"{np.min(r_div):.2e} m and beyond."
-        )
-    else:
-        st.markdown("- **Low-rigidity region:** λ(r) stays above 1e-4 over the plotted range.")
+# ------------------------------------------------
+# TAB 5 – Stability Regions
+# ------------------------------------------------
+with tab_stab:
+    st.subheader("Stability / Agreement Regions")
 
-# ---------- TAB 6: COMPARISON WITH DATA ----------
-with tab6:
-    st.subheader("Comparison with Observational Data (toy samples)")
+    abs_eps = np.abs(epsilon)
+
+    # thresholds
+    thr_GR = 1e-3      # GR-like
+    thr_MOND = 0.1     # mild deviation
+
+    def range_from_mask(mask):
+        if not np.any(mask):
+            return "—"
+        r_sel = r[mask]
+        return f"[{r_sel.min():.3e}, {r_sel.max():.3e}] m"
+
+    mask_GR = abs_eps < thr_GR
+    mask_MOND = (abs_eps >= thr_GR) & (abs_eps < thr_MOND)
+    mask_strong = abs_eps >= thr_MOND
+
+    st.markdown("**Radial ranges (in meters):**")
+
+    st.write(
+        f"- **GR-like regime** (|ε| < 10⁻³): "
+        f"{range_from_mask(mask_GR)}"
+    )
+    st.write(
+        f"- **MOND-like / mild deviation** (10⁻³ ≤ |ε| < 0.1): "
+        f"{range_from_mask(mask_MOND)}"
+    )
+    st.write(
+        f"- **Strong deviation** (|ε| ≥ 0.1): "
+        f"{range_from_mask(mask_strong)}"
+    )
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.semilogx(r, abs_eps)
+    ax.axhline(thr_GR, color="green", linestyle="--", label="GR limit (10⁻³)")
+    ax.axhline(thr_MOND, color="orange", linestyle="--", label="MOND-like (0.1)")
+    ax.set_xlabel("r (m)")
+    ax.set_ylabel("|ε(r)|")
+    ax.set_title("Absolute deviation |ε(r)|")
+    ax.grid(True, which="both", ls=":")
+    ax.legend()
+    st.pyplot(fig)
+
+# ------------------------------------------------
+# TAB 6 – Comparison with Data (MW + M31)
+# ------------------------------------------------
+with tab_comp:
+    st.subheader("Comparison with Observational Data")
 
     kpc = 3.0857e19
-    r_gal = np.linspace(1 * kpc, 100 * kpc, 500)
-    r0_gal = 8 * kpc
-    vN, vT = rotation_curve_teu(M, lambda0, L1, L2, r0_gal, r_gal)
+    r_kpc = r / kpc
+    vN = np.sqrt(r * np.abs(aN_arr)) / 1000.0
+    vT = np.sqrt(r * np.abs(aT_arr)) / 1000.0
 
-    # Milky Way approximate
+    # Milky Way data (approx.)
     r_MW = np.array([5, 8, 10, 15, 20])
     v_MW = np.array([220, 232, 220, 210, 190])
 
-    # M31 approximate data (solo valores típicos)
-    r_M31 = np.array([5, 10, 20, 30])
-    v_M31 = np.array([250, 260, 250, 230])
+    # Very rough M31-like data (illustrative only)
+    r_M31 = np.array([5, 10, 15, 20, 25])
+    v_M31 = np.array([250, 260, 250, 240, 230])
 
-    # SPARC-like toy galaxy
-    r_SP = np.array([2, 4, 8, 12])
-    v_SP = np.array([80, 110, 130, 140])
-
-    fig7, ax7 = plt.subplots(figsize=(7, 5))
-    ax7.plot(r_gal / kpc, vN, label="v_N(r) Newton")
-    ax7.plot(r_gal / kpc, vT, "--", label="v_TEU(r) TEU")
-    ax7.scatter(r_MW, v_MW, color="black", marker="o", label="Milky Way (approx.)")
-    ax7.scatter(r_M31, v_M31, color="tab:orange", marker="s", label="M31 (approx.)")
-    ax7.scatter(r_SP, v_SP, color="tab:green", marker="^", label="SPARC-like galaxy (toy)")
-    ax7.set_xlabel("r (kpc)")
-    ax7.set_ylabel("v(r) (km/s)")
-    ax7.set_title("TEU rotation curves vs. approximate observational data")
-    ax7.grid(True, alpha=0.3)
-    ax7.legend()
-    st.pyplot(fig7)
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(r_kpc, vN, label="v_N(r) Newton (spherical)")
+    ax.plot(r_kpc, vT, "--", label="v_TEU(r) TEU (spherical)")
+    ax.scatter(r_MW, v_MW, c="k", marker="o", label="Milky Way (approx.)")
+    ax.scatter(r_M31, v_M31, c="red", marker="x", label="M31 (illustrative)")
+    ax.set_xlim(0.5, 50)
+    ax.set_xlabel("r (kpc)")
+    ax.set_ylabel("v(r) (km/s)")
+    ax.set_title("Comparison with approximate rotation–curve data")
+    ax.grid(True, ls=":")
+    ax.legend()
+    st.pyplot(fig)
 
     st.markdown(
         """
-The observational points are **illustrative toy data**:
+**Notes**
 
-- Milky Way: Gaia/Eilers–type circular velocity curve.  
-- M31: typical high–mass spiral with \(v \sim 250\) km/s over 10–30 kpc.  
-- “SPARC–like” galaxy: low–mass, slowly rising rotation curve.
-
-The goal of this tab is **not** to provide a precise fit, but to show how
-the TEU rotation curves can be visually compared with real galaxies and
-used as a starting point for future detailed fitting.
+- The observational points are approximate and only meant to illustrate
+  the qualitative agreement of TEU with flat rotation curves using
+  **baryonic mass only**.
+- For a precise comparison one should use full SPARC data and a
+  realistic baryonic mass model (disk + bulge + gas) instead of a
+  single spherical mass.
 """
     )
