@@ -1,20 +1,68 @@
-# app.py
-
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 
-from teu_core import (
-    G, Msun, a0,
-    lambda_two_scale,
-    a_newton,
-    a_teu,
-    rotation_curve_teu
-)
+# ==========================================
+# 1. CONSTANTES Y FUNCIONES TEU (NUEVAS)
+# ==========================================
 
-# ---------------------------------------------------
-# APP CONFIG
-# ---------------------------------------------------
+G = 6.674e-11           # Constante de gravitación (SI)
+Msun = 1.989e30         # Masa solar (kg)
+a0 = 1.2e-10            # Escala MOND (m/s^2), solo referencia
+
+
+def lambda_two_scale(r, lambda0, L1, L2):
+    """
+    Rigidez estructural del vacío con dos escalas:
+
+        lambda(r) = lambda0 / (1 + r/L1 + (r/L2)^2)
+    """
+    r = np.asarray(r, dtype=float)
+    return lambda0 / (1.0 + (r / L1) + (r / L2)**2)
+
+
+def a_newton(r, M):
+    """
+    Aceleración radial newtoniana:
+
+        a_N(r) = - G M / r^2
+    """
+    r = np.asarray(r, dtype=float)
+    return -G * M / r**2
+
+
+def a_teu(r, M, lambda0, L1, L2, r0):
+    """
+    Aceleración efectiva TEU:
+
+        a_TEU(r) = a_N(r) * [ lambda(r0) / lambda(r) ]
+    """
+    r = np.asarray(r, dtype=float)
+    lam_r0 = lambda_two_scale(r0, lambda0, L1, L2)
+    lam_r = lambda_two_scale(r, lambda0, L1, L2)
+    aN = a_newton(r, M)
+    return aN * (lam_r0 / lam_r)
+
+
+def rotation_curve_teu(M, lambda0, L1, L2, r0, r_array):
+    """
+    Curvas de rotación toy para una galaxia tipo punto-masa en TEU.
+    Devuelve v_N(r) y v_TEU(r) en km/s.
+    """
+    r = np.asarray(r_array, dtype=float)
+    aN = a_newton(r, M)
+    aT = a_teu(r, M, lambda0, L1, L2, r0)
+
+    vN = np.sqrt(r * np.abs(aN)) / 1000.0
+    vT = np.sqrt(r * np.abs(aT)) / 1000.0
+
+    return vN, vT
+
+
+# ==========================================
+# 2. CONFIGURACIÓN DE LA APP STREAMLIT
+# ==========================================
+
 st.set_page_config(
     page_title="TEU Sandbox – Structural Vacuum Rigidity",
     layout="wide"
@@ -23,25 +71,27 @@ st.set_page_config(
 st.title("TEU Sandbox – Structural Vacuum Rigidity Model")
 
 st.markdown(
-    """
-    This interactive sandbox explores the **Theory of the Empty Universe (TEU)**  
-    using a two–scale structural vacuum rigidity function \\(\\lambda(r)\\).
+    r"""
+This interactive sandbox explores the **Theory of the Empty Universe (TEU)**
+using a two–scale structural vacuum rigidity function \(\lambda(r)\).
 
-    The model uses:
-    \\[
-        \\lambda(r) = \\frac{\\lambda_0}{1 + r/L_1 + (r/L_2)^2}
-    \\]
-    and an effective acceleration
-    \\[
-        a_{\\text{TEU}}(r) = a_N(r)\\,\\frac{\\lambda(r_0)}{\\lambda(r)} ,
-    \\]
-    where \\(a_N(r) = - GM/r^2\\) is the Newtonian acceleration.
-    """
+The model uses:
+\[
+\lambda(r) = \frac{\lambda_0}{1 + r/L_1 + (r/L_2)^2}
+\]
+and an effective acceleration
+\[
+a_{\mathrm{TEU}}(r) = a_N(r)\,\frac{\lambda(r_0)}{\lambda(r)},
+\qquad
+a_N(r) = -\frac{GM}{r^2}.
+\]
+"""
 )
 
-# ---------------------------------------------------
-# SIDEBAR CONTROLS
-# ---------------------------------------------------
+# ==========================================
+# 3. CONTROLES EN LA BARRA LATERAL
+# ==========================================
+
 st.sidebar.header("Model Parameters")
 
 M_log = st.sidebar.slider(
@@ -93,16 +143,17 @@ N_pts = st.sidebar.slider(
 st.sidebar.markdown("---")
 st.sidebar.markdown(
     """
-    **Tips**  
-    - Move **L₁** to explore the MOND–like transition.  
-    - Increase **L₂** to control the asymptotic acceleration.  
-    - Change **M** to mimic different galaxies.
-    """
+**Tips**  
+- Move **L₁** to explore the MOND–like transition.  
+- Increase **L₂** to control the asymptotic acceleration.  
+- Change **M** to mimic different galaxies.
+"""
 )
 
-# ---------------------------------------------------
-# MAIN CALCULATIONS
-# ---------------------------------------------------
+# ==========================================
+# 4. CÁLCULOS PRINCIPALES
+# ==========================================
+
 r = np.logspace(np.log10(r_min), np.log10(r_max), N_pts)
 
 aN = a_newton(r, M)
@@ -110,16 +161,17 @@ aT = a_teu(r, M, lambda0, L1, L2, r0)
 lam = lambda_two_scale(r, lambda0, L1, L2)
 epsilon = (aT - aN) / aN
 
-# ---------------------------------------------------
-# TABS
-# ---------------------------------------------------
+# ==========================================
+# 5. TABS PRINCIPALES
+# ==========================================
+
 tab1, tab2, tab3 = st.tabs([
     "Acceleration Profiles",
     "Vacuum Rigidity λ(r)",
     "Rotation Curves"
 ])
 
-# ---------------- TAB 1 ----------------
+# ---------- TAB 1: ACELERACIONES ----------
 with tab1:
     st.subheader("Radial Acceleration: Newton vs TEU")
 
@@ -141,7 +193,7 @@ with tab1:
     ax2.grid(True, which="both", alpha=0.3)
     st.pyplot(fig2)
 
-# ---------------- TAB 2 ----------------
+# ---------- TAB 2: λ(r) ----------
 with tab2:
     st.subheader("Structural Vacuum Rigidity λ(r)")
 
@@ -155,13 +207,13 @@ with tab2:
 
     st.markdown(
         f"""
-        - For small radii, λ(r) ≈ λ₀ = **{lambda0:.2f}**  
-        - Galactic scale L₁ ≈ 10^{L1_log:.1f} m  
-        - Cosmological scale L₂ ≈ 10^{L2_log:.1f} m  
+- For small radii, λ(r) ≈ λ₀ = **{lambda0:.2f}**  
+- Galactic scale L₁ ≈ 10^{L1_log:.1f} m  
+- Cosmological scale L₂ ≈ 10^{L2_log:.1f} m  
         """
     )
 
-# ---------------- TAB 3 ----------------
+# ---------- TAB 3: CURVAS DE ROTACIÓN ----------
 with tab3:
     st.subheader("Toy Rotation Curves: Newton vs TEU")
 
@@ -183,8 +235,8 @@ with tab3:
 
     st.markdown(
         """
-        This is a **toy model** assuming a point–mass galaxy.  
-        For realistic fits, one can plug in extended baryonic profiles 
-        (disk + bulge) and compare directly with Gaia/Eilers-type data.
-        """
+This is a **toy model** assuming a point–mass galaxy.  
+For realistic fits, one can plug in extended baryonic profiles 
+(disk + bulge) and compare directly with Gaia/Eilers-type data.
+"""
     )
