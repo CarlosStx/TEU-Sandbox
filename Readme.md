@@ -7,15 +7,32 @@ Interactive exploration tool for the **Theory of the Empty Universe (TEU)**
 
 ## 🔭 Overview
 
-**TEU Sandbox** is an interactive research environment to explore the  
-**Theory of the Empty Universe (TEU)** through its central dynamical element:  
-the *two–scale structural vacuum rigidity function*,
+***TEU Sandbox** is an interactive tool to explore the gravitational behavior 
+predicted by TEU.  
+
+The central element of the model is the *structural vacuum rigidity*:
 
 $$
-\[
-\lambda(r) = \frac{\lambda_0}{1 + r/L_1 + (r/L_2)^2}.
-\]
+\lambda(r) = \frac{\lambda_0}{1 + r/L_1 + (r/L_2)^2}
 $$
+
+and the effective TEU radial acceleration:
+
+$$
+a_{\mathrm{TEU}}(r) = a_{N}(r)\,\frac{\lambda(r_0)}{\lambda(r)}.
+$$
+
+where Newtonian gravity is:
+
+$$
+a_{N}(r) = -\frac{GM}{r^2}.
+$$
+
+The two characteristic scales of TEU are:
+
+- **L₁** – Galactic transition scale (MOND-like regime)  
+- **L₂** – Cosmological scale (Hubble-like acceleration)  
+
 
 This repository provides:
 
